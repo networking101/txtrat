@@ -14,6 +14,9 @@
         { "host": "ns1.howcode.org." },
         { "host": "ns2.howcode.org." }
     ],
+    "a": [
+        { "name": "@", "ttl": 400, "value": "10.0.0.1" }
+    ],
     "txt": [
         { "name": "@", "ttl": 400, "value": "Hello World!" }
     ]
