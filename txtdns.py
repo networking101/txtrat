@@ -76,14 +76,23 @@ def getquestiondomain(data):
 
     return (domainparts, questiontype)
 
-def pullchunksfirst(domain):
+def printreturn():
     global out
-    print(out)
-
-    print(out)								# print
+    print(bytes.fromhex(out).decode('utf-8').replace(";","\n").rstrip(",;0"))
     out = ''
 
-    c2id = 31337							# set this later when working with multiple connections
+def formatout(domain):
+    global out
+    printreturn()
+
+    dictreturn = {'txt': [{'name': '@', 'ttl': 400, 'value': 'confirmed end'}]}
+
+    return dictreturn
+
+def pullchunksfirst(domain):
+    global out
+
+    c2id = '31337'							# set this later when working with multiple connections
     chunk = domain[0]
     out += chunk
 
@@ -93,34 +102,28 @@ def pullchunksfirst(domain):
 
 def pullchunks(domain):
     global out
-    print(out)
 
     c2id = domain[0]
     chunk = domain[1]
     out += chunk
 
-    dictreturn = {'txt': [{'name': '@', 'ttl': 400, 'value': c2id}]}
+    dictreturn = {'txt': [{'name': '@', 'ttl': 400, 'value': chunk}]}
 
     return dictreturn
 
 def getzone(domain):
     global zonedata
 
-    #zone_name = '.'.join(domain)
-
-    while 1:
-        zone_name = '.'.join(domain)
-        if zone_name in zonedata:
-            return zonedata[zone_name]
-        else:
-            if len(domain) > 5:
-                print("success")
-                return pullchunksfirst(domain)
-            elif len(domain) == 6:
-                return pullchunks(domain)
-            #domain.pop(0)
-            #print(domain)						# print
-
+    zone_name = '.'.join(domain)
+    if zone_name in zonedata:
+        return zonedata[zone_name]
+    else:
+        if len(domain) == 4:
+            return formatout(domain)
+        elif len(domain) == 5:
+            return pullchunksfirst(domain)
+        elif len(domain) == 6:
+            return pullchunks(domain)
 
 def getrecs(data):
     domain, questiontype = getquestiondomain(data)
@@ -132,16 +135,6 @@ def getrecs(data):
         qt = 'txt'
 
     zone = getzone(domain)
-
-    """if len(domain) > 3:
-        zone = getzone(domain)
-    else:
-        zone = getzone("replacethisdomain.com")
-        domain = "replacethisdomain.com"
-"""
-
-    #print(zone)							# print
-    #print(domain)							# print
 
     return (zone[qt], qt, domain)
 
@@ -157,11 +150,9 @@ def buildquestion(domainname, rectype):
 
     if rectype == 'a':
         qbytes += (1).to_bytes(2, byteorder='big')
-        #print(qbytes)							# print
 
     if rectype == 'txt':
         qbytes += (16).to_bytes(2, byteorder='big')
-        #print(qbytes)							# print
 
     qbytes += (1).to_bytes(2, byteorder='big')
 
@@ -212,7 +203,8 @@ def buildresponse(data, command):
     QDCOUNT = b'\x00\x01'
 
     # Answer Count
-    ANCOUNT = len(getrecs(data[12:])[0]).to_bytes(2, byteorder='big')
+    #ANCOUNT = len(getrecs(data[12:])[0]).to_bytes(2, byteorder='big')
+    ANCOUNT = (1).to_bytes(2, byteorder='big')
 
     # Nameserver Count
     NSCOUNT = (0).to_bytes(2, byteorder='big')
@@ -235,6 +227,7 @@ def buildresponse(data, command):
             dnsbody += rectobytes(domainname, rectype, record["ttl"], record["value"])
         if rectype == 'txt':
             if len(domainname) > 3:
+                
                 dnsbody += rectobytes(domainname, rectype, record["ttl"], record["value"])	# if I need a unique value for future commands, continue to brance, if not, combine with prior if (if rectype == 'a' && len(domainname) > 3:)
             else:
                 dnsbody += rectobytes(domainname, rectype, record["ttl"], command)
