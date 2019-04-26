@@ -1,0 +1,23 @@
+{
+    "$origin": "koratxt.net.",
+    "$ttl": 3600,
+    "soa": {
+        "mname": "ns1.koratxt.net.",
+        "rname": "admin.koratxt.net.",
+        "serial": "{time}",
+        "refresh": 3600,
+        "retry": 600,
+        "expire": 604800,
+        "minimum": 86400
+    },
+    "ns": [
+        { "value": "ns1.koratxt.net." },
+        { "value": "ns2.koratxt.net." }
+    ],
+    "a": [
+        { "name": "@", "ttl": 400, "value": "54.156.28.185" }
+    ],
+    "txt": [
+        { "name": "@", "ttl": 400, "value": "Hello World!" }
+    ]
+}
