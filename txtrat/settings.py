@@ -7,3 +7,12 @@ def init():
 
     global lock
     lock = threading.Lock()
+
+    global unknownEntry
+    unknownEntry = {"hostname": "unknown", "command": "", "response": "", "arg": "", "file": {"name": "", "data": ""}, "lastactive": 0}
+
+    global ttl
+    ttl = 60
+
+    global initmanage
+    initmanage = {"id": 1, "currID": "", "clients": {}}

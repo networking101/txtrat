@@ -49,6 +49,6 @@ def genTxtResponse(records, value):
 
     rbytes += (len(value)+1).to_bytes(2, byteorder='big')
     rbytes += (len(value)).to_bytes(1, byteorder='big')
-    rbytes += value.encode()
+    rbytes += value
 
     return rbytes

