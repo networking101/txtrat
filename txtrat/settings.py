@@ -9,7 +9,7 @@ def init():
     lock = threading.Lock()
 
     global unknownEntry
-    unknownEntry = {"hostname": "unknown", "command": "", "response": "", "arg": "", "file": {"name": "", "data": ""}, "lastactive": 0}
+    unknownEntry = {"hostname": "unknown", "command": "", "args": [], "response": "", "lastactive": 0}
 
     global ttl
     ttl = 60

