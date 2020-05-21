@@ -93,7 +93,10 @@ def parseRequest(data):
     QDCOUNT = b'\x00\x01'
 
     # Answer Count
-    records = dnszones.getzone(domainname[-3:], rectype)     # argument domainname and rectype
+    if rectype == b'\x00\x01' and (domainname[0] == "ns1" or domainname[0] == "ns2"):
+        records = dnszones.getzone(domainname[-4:], rectype)
+    else:
+        records = dnszones.getzone(domainname[-3:], rectype)     # argument domainname and rectype
     #if records is None:                                     # records: an array dns type record (ex: [{'name': '@', 'ttl': 400, 'value': 'Hello World!'}])
     #    return None                                         # return None if record does not exist in .zone file
     ANCOUNT = (len(records)).to_bytes(2, byteorder='big')

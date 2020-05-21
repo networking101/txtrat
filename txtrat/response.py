@@ -7,17 +7,17 @@ def genResponse(records, rectype):
     if rectype == b'\x00\x01':                  # A record
         rbytes = b''
         
-        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        s.connect(('8.8.8.8', 80))
-        ip_address = s.getsockname()[0]
-        s.close()
+        #s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        #s.connect(('8.8.8.8', 80))
+        #ip_address = s.getsockname()[0]
+        #s.close()
 
         for record in records:
             rbytes += b'\xc0\x0c' + rectype + b'\x00\x01'
             rbytes += int(record['ttl']).to_bytes(4, byteorder='big')
 
             rbytes += b'\x00\x04'           # size of ip address
-            for part in ip_address.split('.'):
+            for part in record['value'].split('.'):
                 rbytes += bytes([int(part)])
 
     elif rectype == b'\x00\x02':                # NS record
