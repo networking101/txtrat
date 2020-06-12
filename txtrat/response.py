@@ -1,10 +1,11 @@
 # response.py
-import socket
+import struct
 
 # Default response.  This is used if normal DNS requests are send (no C2)
 def genResponse(records, rectype):
 
-    if rectype == b'\x00\x01':                  # A record
+    # A record
+    if rectype == b'\x00\x01':
         rbytes = b''
         
         #s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -20,7 +21,36 @@ def genResponse(records, rectype):
             for part in record['value'].split('.'):
                 rbytes += bytes([int(part)])
 
-    elif rectype == b'\x00\x02':                # NS record
+    # SOA record (if ns request on name server, return start of authority record)
+    elif rectype == b'\x00\x06':
+        rbytes = b''
+        for record in records:
+            jumpback = b'\xc0\x0c'
+            if len(record['name'].split('.')) == 4:
+                jumpback = b'\xc0\x10'
+
+            rbytes += jumpback + rectype + b'\x00\x01'
+            rbytes += int(record['ttl']).to_bytes(4, byteorder='big')
+            
+            parts = record['mname'].split('.')
+            answerbody = (len(parts[0])).to_bytes(1, byteorder='big')
+            answerbody += (parts[0]).encode() + jumpback
+
+            parts = record['rname'].split('.')
+            answerbody += (len(parts[0])).to_bytes(1, byteorder='big')
+            answerbody += (parts[0]).encode() + jumpback
+
+            answerbody += struct.pack(">I", record['serial'])
+            answerbody += struct.pack(">I", record['refresh'])
+            answerbody += struct.pack(">I", record['retry'])
+            answerbody += struct.pack(">I", record['expire'])
+            answerbody += struct.pack(">I", record['minimum'])
+
+            rbytes += (len(answerbody)).to_bytes(2, byteorder='big')
+            rbytes += answerbody
+
+    # NS record
+    elif rectype == b'\x00\x02':
         rbytes = b''
         for record in records:
             rbytes += b'\xc0\x0c' + rectype + b'\x00\x01'
@@ -29,7 +59,9 @@ def genResponse(records, rectype):
             rbytes += b'\x00\x06'           # size of name server response (only need to calculate 'ns1.' because the rest is stored at 0xc00c)
             parts = record['value'].split('.')
             rbytes += (3).to_bytes(1, byteorder='big') + (parts[0]).encode() + b'\xc0\x0c'
-    elif rectype == b'\x00\x10':                # txt record
+
+    # TXT record
+    elif rectype == b'\x00\x10':
         rbytes = b''
         for record in records:
             rbytes += b'\xc0\x0c' + rectype + b'\x00\x01'

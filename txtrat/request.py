@@ -1,5 +1,6 @@
 # request.py
 import dnszones
+import socket
 
 
 def buildquestion(domainname):
@@ -76,7 +77,10 @@ def getflags(flags):
 
 # This function will parse out the sections of the DNS request.  The first part of the response will be generated (up to the end of the query section)
 # The zone records and rectype will be needed to generate the Answers section
-def parseRequest(data):
+def parseRequest(data, protoType=socket.SOCK_DGRAM):
+
+    if protoType == socket.SOCK_STREAM:
+        data = data[2:]
 
     # Transaction ID
     TransactionID = data[:2]
@@ -93,19 +97,36 @@ def parseRequest(data):
     QDCOUNT = b'\x00\x01'
 
     # Answer Count
-    if rectype == b'\x00\x01' and (domainname[0] == "ns1" or domainname[0] == "ns2"):
-        records = dnszones.getzone(domainname[-4:], rectype)
+    newrectype = rectype
+    if domainname[0] == "ns1" or domainname[0] == "ns2":
+        nameSize = 4
+        # Stupid shit to return soa record if name server receives ns request.  TODO fix
+        if rectype == b'\x00\x02':
+            newrectype = b'\x00\x06'
+        records = dnszones.getzone(domainname[-4:], newrectype)
     else:
+        nameSize = 3
         records = dnszones.getzone(domainname[-3:], rectype)     # argument domainname and rectype
-    #if records is None:                                     # records: an array dns type record (ex: [{'name': '@', 'ttl': 400, 'value': 'Hello World!'}])
-    #    return None                                         # return None if record does not exist in .zone file
-    ANCOUNT = (len(records)).to_bytes(2, byteorder='big')
 
-    # Nameserver Count
-    NSCOUNT = (0).to_bytes(2, byteorder='big')
+    # if a name server gets an ns request, this is an authoritative answer
+    if rectype != newrectype:
+        # Answer Count
+        ANCOUNT = (0).to_bytes(2, byteorder='big')
 
-    # Additonal Count
-    ARCOUNT = (0).to_bytes(2, byteorder='big')
+        # Nameserver Count
+        NSCOUNT = (len(records)).to_bytes(2, byteorder='big')
+
+        # Additonal Count
+        ARCOUNT = (0).to_bytes(2, byteorder='big')
+    else:
+        # Answer Count
+        ANCOUNT = (len(records)).to_bytes(2, byteorder='big')
+
+        # Nameserver Count
+        NSCOUNT = (0).to_bytes(2, byteorder='big')
+
+        # Additonal Count
+        ARCOUNT = (0).to_bytes(2, byteorder='big')
 
     dnsheader = TransactionID+Flags+QDCOUNT+ANCOUNT+NSCOUNT+ARCOUNT
 
@@ -115,4 +136,4 @@ def parseRequest(data):
     # Put together the dns reponse body up to the query
     dnsquerybody = dnsheader + dnsquestion + rectype + (1).to_bytes(2, byteorder='big')
 
-    return (dnsquerybody, records, rectype, domainname[:len(domainname)-3])
+    return (dnsquerybody, records, newrectype, domainname[:len(domainname)-nameSize])
